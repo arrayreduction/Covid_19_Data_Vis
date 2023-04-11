@@ -27,26 +27,20 @@ def main():
     vaccine_dir = r"C:\Users\yblad\Documents\For Bsc\Year 3\Data Vis\Assessment\Data\Vaccination"
 
     #Post 2022 deaths
-    dfs_deaths = []
-    files = get_files("Post22",deaths_dir)
-    files = [x for x in files if x.endswith('.xlsx')]
+    files_deaths_post22 = get_files("Post22", deaths_dir)
+    files_deaths_post22 = [x for x in files_deaths_post22 if x.endswith('.xlsx')]
 
     #Pre 2022 deaths
-    dfs_deaths = []
-    files = get_files("Pre22",deaths_dir)
-    files = [x for x in files if x.endswith('.xlsx')]
+    files_deaths_pre22 = get_files("Pre22", deaths_dir)
+    files_deaths_pre22 = [x for x in files_deaths_pre22 if x.endswith('.xlsx')]
 
     #Post2018 vaccination
-
-    dfs_vacs = []
-    files = get_files("Post2018", vaccine_dir)
-    files = [x for x in files if x.endswith('.xlsx')]
+    files_vac_post18 = get_files("Post2018", vaccine_dir)
+    files_vac_post18 = [x for x in files_vac_post18 if x.endswith('.xlsx')]
 
     #Pre2018 vaccination
-
-    dfs_vacs = []
-    files = get_files("Pre2018", vaccine_dir)
-    files = [x for x in files if x.endswith('.xlsx')]
+    files_vac_pre18 = get_files("Pre2018", vaccine_dir)
+    files_vac_pre18 = [x for x in files_vac_pre18 if x.endswith('.xlsx')]
 
 if __name__ == '__main__':
     main()
