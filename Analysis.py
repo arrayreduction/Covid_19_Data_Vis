@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-def import_excel_sheets(sheet_no, files):
+def import_excel_sheets(sheet_no, skiprows, files):
     dfs = []
     for f in files:
-        df = pd.read_excel(f)
+        df = pd.read_excel(f, sheet_name=sheet_no, skiprows=skiprows)
         dfs.append(df)
 
     return dfs
@@ -34,13 +34,21 @@ def main():
     files_deaths_pre22 = get_files("Pre22", deaths_dir)
     files_deaths_pre22 = [x for x in files_deaths_pre22 if x.endswith('.xlsx')]
 
-    #Post2018 vaccination
-    files_vac_post18 = get_files("Post2018", vaccine_dir)
-    files_vac_post18 = [x for x in files_vac_post18 if x.endswith('.xlsx')]
+    #Cumulative vaccination
+    files_vac = get_files("Cumulative", vaccine_dir)
+    files_vac = [x for x in files_vac if x.endswith('.xlsx')]
 
-    #Pre2018 vaccination
-    files_vac_pre18 = get_files("Pre2018", vaccine_dir)
-    files_vac_pre18 = [x for x in files_vac_pre18 if x.endswith('.xlsx')]
+    #Handle vaccines
+    dfs = []
+    for i in range(3, 9):
+        df = pd.concat(import_excel_sheets(i, 4, files_vac))
+        df['sheet_origin'] = i
+        dfs.append(df)
+    
+    df_vacs = pd.concat(dfs, axis=0, sort=False)
+
+    df_vacs.info()
+
 
 if __name__ == '__main__':
     main()
