@@ -159,7 +159,7 @@ def import_files(verbose=False):
     df_2020_de_females.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_de_females.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_de_regions = df_2020_cv[78:89]
+    df_2020_de_regions = df_2020_cv[78:88]
     df_2020_de_regions.set_index('Unnamed: 1', inplace=True)
     df_2020_de_regions = df_2020_de_regions.T
     df_2020_de_regions.reset_index(drop=False, inplace=True, names='Week ending')
