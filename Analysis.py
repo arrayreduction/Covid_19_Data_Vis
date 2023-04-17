@@ -107,29 +107,29 @@ def import_files(verbose=False):
     #Covid 19 occurances
 
     files_deaths_pre22 = [x for x in files_deaths_pre22 if "2020" in x]
-    df_2020_cv = pd.read_excel(*files_deaths_pre22, sheet_name=6, skiprows=4, header=1, nrows=80)
-    df_2020_cv.dropna(how='all', inplace=True)
-    df_2020_cv.drop(columns='Week ended', inplace=True)
+    df_2020 = pd.read_excel(*files_deaths_pre22, sheet_name=6, skiprows=4, header=1, nrows=80)
+    df_2020.dropna(how='all', inplace=True)
+    df_2020.drop(columns=['Week ended','1 to 53'], inplace=True)
 
-    df_2020_cv_all = df_2020_cv[3:23]
+    df_2020_cv_all = df_2020[3:23]
     df_2020_cv_all.set_index('Unnamed: 1', inplace=True)
     df_2020_cv_all = df_2020_cv_all.T
     df_2020_cv_all.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_cv_all.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_cv_males = df_2020_cv[25:45]
+    df_2020_cv_males = df_2020[25:45]
     df_2020_cv_males.set_index('Unnamed: 1', inplace=True)
     df_2020_cv_males = df_2020_cv_males.T
     df_2020_cv_males.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_cv_males.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_cv_females = df_2020_cv[47:67]
+    df_2020_cv_females = df_2020[47:67]
     df_2020_cv_females.set_index('Unnamed: 1', inplace=True)
     df_2020_cv_females = df_2020_cv_females.T
     df_2020_cv_females.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_cv_females.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_cv_regions = df_2020_cv[68:78]
+    df_2020_cv_regions = df_2020[68:78]
     df_2020_cv_regions.set_index('Unnamed: 1', inplace=True)
     df_2020_cv_regions = df_2020_cv_regions.T
     df_2020_cv_regions.reset_index(drop=False, inplace=True, names='Week ending')
@@ -137,29 +137,29 @@ def import_files(verbose=False):
 
     #All registered deaths
 
-    df_2020_cv = pd.read_excel(*files_deaths_pre22, sheet_name=4, skiprows=4, header=1, nrows=92)
-    df_2020_cv.dropna(how='all', inplace=True)
-    df_2020_cv.drop(columns='Week ended', inplace=True)
+    df_2020 = pd.read_excel(*files_deaths_pre22, sheet_name=4, skiprows=4, header=1, nrows=92)
+    df_2020.dropna(how='all', inplace=True)
+    df_2020.drop(columns='Week ended', inplace=True)
 
-    df_2020_de_all = df_2020_cv[13:33]
+    df_2020_de_all = df_2020[13:33]
     df_2020_de_all.set_index('Unnamed: 1', inplace=True)
     df_2020_de_all = df_2020_de_all.T
     df_2020_de_all.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_de_all.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_de_males = df_2020_cv[35:55]
+    df_2020_de_males = df_2020[35:55]
     df_2020_de_males.set_index('Unnamed: 1', inplace=True)
     df_2020_de_males = df_2020_de_males.T
     df_2020_de_males.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_de_males.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_de_females = df_2020_cv[57:77]
+    df_2020_de_females = df_2020[57:77]
     df_2020_de_females.set_index('Unnamed: 1', inplace=True)
     df_2020_de_females = df_2020_de_females.T
     df_2020_de_females.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_de_females.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
 
-    df_2020_de_regions = df_2020_cv[78:88]
+    df_2020_de_regions = df_2020[78:88]
     df_2020_de_regions.set_index('Unnamed: 1', inplace=True)
     df_2020_de_regions = df_2020_de_regions.T
     df_2020_de_regions.reset_index(drop=False, inplace=True, names='Week ending')
@@ -186,6 +186,20 @@ def import_files(verbose=False):
     df_de_region.attrs['name'] = 'df_de_region'
 
     df_vacs.attrs['name'] = 'df_vacs'
+
+    #Remove duplicates. Due to the files naming stucture and how we have then appended
+    #files, the newest version of the data is on top. Therefore, if we keep the first.
+    #This ensures we capture any corrections made in subsequent issues. Not required
+    #for vaccine data as this is pulled from a single issue.
+
+    df_cv19_age_all.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_cv19_age_male.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_cv19_age_female.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_cv19_region.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_de_age_all.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_de_age_male.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_de_age_female.drop_duplicates(subset='Week ending', keep='first', inplace=True)
+    df_de_region.drop_duplicates(subset='Week ending', keep='first', inplace=True)
 
     if verbose:
         df_2020_cv_all.info()
@@ -219,8 +233,64 @@ def import_files(verbose=False):
     return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_age_male, df_de_age_male, df_cv19_age_female, 
             df_de_age_female, df_cv19_region, df_de_region]
 
+def get_df(dfs, df_name):
+    '''Convience function. Returns the named df from the list of dfs.
+    Relies on the fact we have previous set the df.attrs['name'] attribute.'''
+
+    df = [x for x in dfs if x.attrs['name'] == df_name]
+
+    if len(df) == 1:
+        return df[0]
+    elif len(df) > 1:
+        raise ValueError('Multiple dataframes found with the given name attribute')
+    elif len(df) == 0:
+        raise ValueError('No dataframes found with the given name attribute')
+
+def deaths_analysis(dfs):
+    #Get required data and reformat into into 'long' form for seaborn/matplotlib
+
+    df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_cv19_male = get_df(dfs, 'df_cv19_age_male').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_cv19_female = get_df(dfs, 'df_cv19_age_female').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_de_all = get_df(dfs, 'df_de_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending') 
+    df_de_male = get_df(dfs, 'df_de_age_male').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_de_female = get_df(dfs, 'df_de_age_female').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+
+    sns.set_theme()
+
+    #Proportion of c19 cases in each age bracket over time
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending']
+    plt.stackplot(df_cv19_all['Week ending'], df_cv19_all[categories].T, labels=categories)
+    plt.title("Covid 19 deaths by age group")
+    plt.xlabel("Week ending")
+    plt.ylabel("Deaths")
+    plt.legend()
+    plt.show()
+
+    #df.divide(df.sum(axis=1), axis=0)
+    normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
+    plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
+    plt.title("Covid 19 deaths by age group")
+    plt.xlabel("Week ending")
+    plt.ylabel("Deaths (normalised)")
+    plt.legend()
+    plt.show()
+
+    df_cv19_all['Week ending'].to_excel("Test.xlsx")
+
+    #As above, but by gender
+
+    #
+
+def vacs_analysis(dfs):
+    pass
+
+def deaths_vacs_analysis(dfs):
+    pass
+
 def main(FIRST_RUN):
-    #import files
+    #import files and serialise. 
+    #If not first run, get pre-serialised data files
 
     if FIRST_RUN:
         dfs = import_files(verbose=True)
@@ -242,8 +312,10 @@ def main(FIRST_RUN):
         for f in files:
             dfs.append(pd.read_pickle(f))
 
-
+    deaths_analysis(dfs)
+    vacs_analysis(dfs)
+    deaths_vacs_analysis(dfs)
 
 if __name__ == '__main__':
-    FIRST_RUN = True
+    FIRST_RUN = False
     main(FIRST_RUN)
