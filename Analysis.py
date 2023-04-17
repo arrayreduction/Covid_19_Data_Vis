@@ -166,15 +166,26 @@ def import_files(verbose=False):
     df_2020_de_regions.rename(columns={'East':'East of England'}, inplace=True)
 
     #Merge 2020 frames with newer format frames
+    #Set name attrs
 
     df_cv19_age_all = pd.concat([df_cv19_age_all, df_2020_cv_all])
+    df_cv19_age_all.attrs['name'] = 'df_cv19_age_all'
     df_cv19_age_male = pd.concat([df_cv19_age_male, df_2020_cv_males])
+    df_cv19_age_male.attrs['name'] = 'df_cv19_age_male'
     df_cv19_age_female = pd.concat([df_cv19_age_female, df_2020_cv_females])
+    df_cv19_age_female.attrs['name'] = 'df_cv19_age_female'
     df_cv19_region = pd.concat([df_cv19_region, df_2020_cv_regions])
+    df_cv19_region.attrs['name'] = 'df_cv19_region'
     df_de_age_all = pd.concat([df_de_age_all, df_2020_de_all])
+    df_de_age_all.attrs['name'] = 'df_de_age_all'
     df_de_age_male = pd.concat([df_de_age_male, df_2020_de_males])
+    df_de_age_male.attrs['name'] = 'df_de_age_male'
     df_de_age_female = pd.concat([df_de_age_female, df_2020_de_females])
+    df_de_age_female.attrs['name'] = 'df_de_age_female'
     df_de_region = pd.concat([df_de_region, df_2020_de_regions])
+    df_de_region.attrs['name'] = 'df_de_region'
+
+    df_vacs.attrs['name'] = 'df_vacs'
 
     if verbose:
         df_2020_cv_all.info()
@@ -208,8 +219,31 @@ def import_files(verbose=False):
     return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_age_male, df_de_age_male, df_cv19_age_female, 
             df_de_age_female, df_cv19_region, df_de_region]
 
-def main():
-    dfs = import_files(verbose=True)
+def main(FIRST_RUN):
+    #import files
+
+    if FIRST_RUN:
+        dfs = import_files(verbose=True)
+
+        for df in dfs:
+            df.to_pickle(f"{df.attrs['name']}.pkl")
+
+    else:
+        dfs = []
+
+        if os.name == 'nt':
+            dir = r"C:\Users\yblad\Documents\For Bsc\Year 3\Data Vis"
+        elif os.name == 'posix':
+            dir = r"/mnt/c/Documents and Settings/yblad/Documents/For Bsc/Year 3/Data Vis"
+
+        files = get_files('Assessment', dir)
+        files = [x for x in files if ".pkl" in x]
+
+        for f in files:
+            dfs.append(pd.read_pickle(f))
+
+
 
 if __name__ == '__main__':
-    main()
+    FIRST_RUN = True
+    main(FIRST_RUN)
