@@ -1,5 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.stats import rankdata
+import numpy as np
 import seaborn as sns
 import os
 
@@ -201,6 +203,16 @@ def import_files(verbose=False):
     df_de_age_female.drop_duplicates(subset='Week ending', keep='first', inplace=True)
     df_de_region.drop_duplicates(subset='Week ending', keep='first', inplace=True)
 
+    df_cv19_age_male['gender'] = 'male'
+    df_cv19_age_female['gender'] = 'female'
+    df_cv19_by_gender = pd.concat((df_cv19_age_male, df_cv19_age_female))
+    df_cv19_by_gender.attrs['name'] = 'df_cv19_by_gender'
+
+    df_de_age_male['gender'] = 'male'
+    df_de_age_female['gender'] = 'female'
+    df_de_by_gender = pd.concat((df_de_age_male, df_de_age_female))
+    df_de_by_gender.attrs['name'] = 'df_de_by_gender'
+
     if verbose:
         df_2020_cv_all.info()
         print(df_2020_cv_all.head(20))
@@ -230,8 +242,7 @@ def import_files(verbose=False):
         df_cv19_region.info()
         df_de_region.info()
 
-    return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_age_male, df_de_age_male, df_cv19_age_female, 
-            df_de_age_female, df_cv19_region, df_de_region]
+    return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_by_gender, df_de_by_gender, df_cv19_region, df_de_region]
 
 def get_df(dfs, df_name):
     '''Convience function. Returns the named df from the list of dfs.
@@ -250,11 +261,10 @@ def deaths_analysis(dfs):
     #Get required data and reformat into into 'long' form for seaborn/matplotlib
 
     df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
-    df_cv19_male = get_df(dfs, 'df_cv19_age_male').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
-    df_cv19_female = get_df(dfs, 'df_cv19_age_female').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_cv19_gender = get_df(dfs, 'df_cv19_by_gender').drop(columns=['Week number']).sort_values(by='Week ending')
+    df_cv19_region = get_df(dfs, 'df_cv19_region').drop(columns='Week number').sort_values(by='Week ending')
     df_de_all = get_df(dfs, 'df_de_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending') 
-    df_de_male = get_df(dfs, 'df_de_age_male').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
-    df_de_female = get_df(dfs, 'df_de_age_female').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_de_gender = get_df(dfs, 'df_de_by_gender').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
 
     sns.set_theme()
 
@@ -263,24 +273,63 @@ def deaths_analysis(dfs):
     plt.stackplot(df_cv19_all['Week ending'], df_cv19_all[categories].T, labels=categories)
     plt.title("Covid 19 deaths by age group")
     plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
     plt.ylabel("Deaths")
     plt.legend()
     plt.show()
 
-    #df.divide(df.sum(axis=1), axis=0)
+    #get normalised data by dividing each datum b the total for that date
     normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
-    plt.title("Covid 19 deaths by age group")
+    plt.title("Covid proportion of 19 deaths by age group")
     plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
     plt.legend()
     plt.show()
 
-    df_cv19_all['Week ending'].to_excel("Test.xlsx")
-
     #As above, but by gender
+    #We need to stack the male/female totals side by side, then normalise
+    data = 'All ages'
+    df_cv19_gender.fillna(0, inplace=True)
+    male, female = df_cv19_gender.query('gender == "male"'), df_cv19_gender.query('gender == "female"')
+    male, female = male[['Week ending', data]], female[['Week ending', data]]
+    normalised = pd.concat((male, female), axis=1)
+    normalised = normalised[data].divide(normalised[data].sum(axis=1), axis=0)
 
-    #
+    plt.stackplot(df_cv19_gender['Week ending'].drop_duplicates(), normalised.T, labels=['male','female'])
+    plt.axhline(y=0.5, ls='--', color='black', label="0.5")
+    plt.title("Covid proportion of deaths by gender")
+    plt.ylabel("Deaths (normalised)")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.legend()
+    plt.show()
+
+    #same for region
+    df_cv19_region.fillna(0, inplace=True)
+    categories = [x for x in df_cv19_region.columns if x != 'Week ending']
+    normalised = df_cv19_region[categories].divide(df_cv19_region[categories].sum(axis=1), axis=0)
+    plt.stackplot(df_cv19_region['Week ending'], normalised.T, labels=categories)
+    plt.title("Covid proportion of 19 deaths by region")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("Deaths (normalised)")
+    plt.legend()
+    plt.show()
+
+    #bumb chart for region
+    #we get the rank of each region by deaths and then plot on the ranks
+    df_cv19_region['rank'] = df_cv19_region[categories].apply(rankdata, axis=1)
+    for i, col in enumerate(categories):
+        plt.plot(df_cv19_region['Week ending'], np.stack(df_cv19_region['rank'].to_numpy(), axis=0)[:,i], label=col)
+
+    plt.title("Regional rank of deaths due to covid 19")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("Rank")
+    plt.legend()
+    plt.show()
 
 def vacs_analysis(dfs):
     pass
