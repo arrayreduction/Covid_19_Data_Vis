@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import rankdata
+from collections import defaultdict
+from pywaffle import Waffle
 import numpy as np
 import seaborn as sns
 import os
@@ -137,9 +139,13 @@ def import_files(verbose=False):
     df_2020_cv_regions.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_cv_regions.rename(columns={'East':'East of England'}, inplace=True)
 
-    #All registered deaths
+    #All registered deaths. This time we need both files
 
-    df_2020 = pd.read_excel(*files_deaths_pre22, sheet_name=4, skiprows=4, header=1, nrows=92)
+    files_deaths_pre22 = get_files("Pre22", deaths_dir)
+    files_deaths_pre22 = [x for x in files_deaths_pre22 if x.endswith('.xlsx')]
+    f2021, f2020 = files_deaths_pre22[0], files_deaths_pre22[1]
+
+    df_2020 = pd.read_excel(f2020, sheet_name=4, skiprows=4, header=1, nrows=92)
     df_2020.dropna(how='all', inplace=True)
     df_2020.drop(columns='Week ended', inplace=True)
 
@@ -167,6 +173,35 @@ def import_files(verbose=False):
     df_2020_de_regions.reset_index(drop=False, inplace=True, names='Week ending')
     df_2020_de_regions.rename(columns={'East':'East of England'}, inplace=True)
 
+    df_2021 = pd.read_excel(f2021, sheet_name=4, skiprows=4, header=1, nrows=96)
+    df_2021.dropna(how='all', inplace=True)
+    df_2021.drop(columns='Week ended', inplace=True)
+    df_2021 = df_2021.iloc[:,:-1]
+
+    df_2021_de_all = df_2021[7:27]
+    df_2021_de_all.set_index('Unnamed: 1', inplace=True)
+    df_2021_de_all = df_2021_de_all.T
+    df_2021_de_all.reset_index(drop=False, inplace=True, names='Week ending')
+    df_2021_de_all.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
+
+    df_2021_de_males = df_2021[29:49]
+    df_2021_de_males.set_index('Unnamed: 1', inplace=True)
+    df_2021_de_males = df_2021_de_males.T
+    df_2021_de_males.reset_index(drop=False, inplace=True, names='Week ending')
+    df_2021_de_males.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
+
+    df_2021_de_females = df_2021[51:71]
+    df_2021_de_females.set_index('Unnamed: 1', inplace=True)
+    df_2021_de_females = df_2021_de_females.T
+    df_2021_de_females.reset_index(drop=False, inplace=True, names='Week ending')
+    df_2021_de_females.rename(columns={'1-4':'01-04','5-9':'05-09'}, inplace=True)
+
+    df_2021_de_regions = df_2021[72:82]
+    df_2021_de_regions.set_index('Unnamed: 1', inplace=True)
+    df_2021_de_regions = df_2021_de_regions.T
+    df_2021_de_regions.reset_index(drop=False, inplace=True, names='Week ending')
+    df_2021_de_regions.rename(columns={'East':'East of England'}, inplace=True)
+
     #Merge 2020 frames with newer format frames
     #Set name attrs
 
@@ -178,13 +213,14 @@ def import_files(verbose=False):
     df_cv19_age_female.attrs['name'] = 'df_cv19_age_female'
     df_cv19_region = pd.concat([df_cv19_region, df_2020_cv_regions])
     df_cv19_region.attrs['name'] = 'df_cv19_region'
-    df_de_age_all = pd.concat([df_de_age_all, df_2020_de_all])
+    df_de_age_all = pd.concat([df_de_age_all, df_2021_de_all, df_2020_de_all])
     df_de_age_all.attrs['name'] = 'df_de_age_all'
-    df_de_age_male = pd.concat([df_de_age_male, df_2020_de_males])
+    df_de_age_male = pd.concat([df_de_age_male, df_2021_de_males, df_2020_de_males])
     df_de_age_male.attrs['name'] = 'df_de_age_male'
-    df_de_age_female = pd.concat([df_de_age_female, df_2020_de_females])
+    df_de_age_female = pd.concat([df_de_age_female, df_2021_de_females, df_2020_de_females])
     df_de_age_female.attrs['name'] = 'df_de_age_female'
-    df_de_region = pd.concat([df_de_region, df_2020_de_regions])
+
+    df_de_region = pd.concat([df_de_region, df_2021_de_regions, df_2020_de_regions])
     df_de_region.attrs['name'] = 'df_de_region'
 
     df_vacs.attrs['name'] = 'df_vacs'
@@ -232,6 +268,15 @@ def import_files(verbose=False):
         df_2020_de_regions.info()
         print(df_2020_de_regions.head(20))
 
+        df_2021_de_all.info()
+        print(df_2021_de_all.head(20))
+        df_2021_de_males.info()
+        print(df_2021_de_males.head(20))
+        df_2021_de_females.info()
+        print(df_2021_de_females.head(20))
+        df_2021_de_regions.info()
+        print(df_2021_de_regions.head(20))
+
         df_vacs.info()
         df_cv19_age_all.info()
         df_de_age_all.info()
@@ -260,16 +305,16 @@ def get_df(dfs, df_name):
 def deaths_analysis(dfs):
     #Get required data and reformat into into 'long' form for seaborn/matplotlib
 
-    df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number']).sort_values(by='Week ending')
     df_cv19_gender = get_df(dfs, 'df_cv19_by_gender').drop(columns=['Week number']).sort_values(by='Week ending')
     df_cv19_region = get_df(dfs, 'df_cv19_region').drop(columns='Week number').sort_values(by='Week ending')
-    df_de_all = get_df(dfs, 'df_de_age_all').drop(columns=['Week number','All ages']).sort_values(by='Week ending') 
+    df_de_all = get_df(dfs, 'df_de_age_all').drop(columns=['Week number']).sort_values(by='Week ending') 
     df_de_gender = get_df(dfs, 'df_de_by_gender').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
 
     sns.set_theme()
 
     #Proportion of c19 cases in each age bracket over time
-    categories = [x for x in df_cv19_all.columns if x != 'Week ending']
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
     plt.stackplot(df_cv19_all['Week ending'], df_cv19_all[categories].T, labels=categories)
     plt.title("Covid 19 deaths by age group")
     plt.xlabel("Week ending")
@@ -329,6 +374,82 @@ def deaths_analysis(dfs):
     plt.xticks(rotation=90)
     plt.ylabel("Rank")
     plt.legend()
+    plt.show()
+
+    #Waffle charts of proportion of covid deaths for each age group
+    #over whole time period. Create a list with proportion of cv19 deaths
+
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x != 'All ages']
+    df_cv19_prop = pd.DataFrame()
+    df_cv19_all.set_index('Week ending', inplace=True)
+    df_de_all.set_index('Week ending', inplace=True)
+    totals = []
+
+    for col in categories:
+        df_cv19_prop[col] = df_cv19_all[col].divide(df_de_all[col])
+        df_cv19_prop[col] = df_cv19_prop[col].where(df_cv19_prop[col] != np.inf, 0)
+        totals.append(df_cv19_prop[col].sum() / len(df_cv19_all[col]))
+
+    #Now turn into 2d array of [proportion cv19_deaths, 1- proportion cv19_deaths]
+
+    totals = np.asarray(totals).reshape(-1,1)
+    totals = np.append(totals, 1 - totals, axis=1)
+
+    #Pywaffle is essentially a wrapper for matplotlib to make waffle charts
+    #populate sublot dictionary with following dict format
+    #see https://pywaffle.readthedocs.io/en/latest/examples/subplots.html
+               # (row,column,index): {
+                #'values': totals*100,
+                #'labels': ['Covid19', 'All deaths'],
+                #'legend': {'loc': 'upper left', 'bbox_to_anchor': (1.05, 1), 'fontsize': 8},
+                #'title': {'label': 'category name', 'loc': 'left', 'fontsize': 12}
+            #               }
+
+    plots = defaultdict(dict)
+
+    for i in range(len(totals)):
+        plots[(4,5,i+1)]['values'] = totals[i]*100
+        plots[(4,5,i+1)]['labels'] = ['Covid19', 'All deaths']
+        plots[(4,5,i+1)]['legend'] = {'loc': 'upper left', 'bbox_to_anchor': (1.05, 1), 'fontsize': 8}
+        plots[(4,5,i+1)]['title'] = {'label': categories[i], 'loc': 'left', 'fontsize': 12}
+
+    fig = plt.figure(
+        FigureClass=Waffle,
+        plots=plots,
+        rows=5,
+        columns=10,
+        cmap_name="Accent", 
+        rounding_rule='nearest', 
+        figsize=(10, 10)
+    )
+
+    fig.suptitle('Proportion of deaths to covid 19', fontsize=14, fontweight='bold')
+    fig.supxlabel('1 block = 2% of deaths', fontsize=8, ha='right')
+    plt.show()
+
+    #Lineplot of proportion of deaths over time for each group
+
+    for i , col in enumerate(categories):
+        plt.plot(df_cv19_all.index, df_cv19_prop[col], label = col)
+
+    plt.title("Proportion of covid deaths per age group")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("% of deaths")
+    plt.legend()
+    plt.show()
+
+    #Lineplot proportion of deaths over time all combined
+    df_de_all['All ages'] = df_de_all['All ages'].where(df_de_all['All ages'].isnull() == False, df_de_all[categories].sum(axis=1))
+    df_cv19_all['All ages'] = df_cv19_all['All ages'].where(df_cv19_all['All ages'].isnull() == False, df_cv19_all[categories].sum(axis=1))
+    df_cv19_prop['all'] = df_cv19_all['All ages'].divide(df_de_all['All ages'])
+    df_cv19_prop['all'] = df_cv19_prop['all'].where(df_cv19_prop['all'] != np.inf, 0)
+    plt.plot(df_cv19_all.index, df_cv19_prop['all'], label='All data')
+
+    plt.title("Proportion of covid deaths in all age groups")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("% of deaths")
     plt.show()
 
 def vacs_analysis(dfs):
