@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import rankdata
 from collections import defaultdict
 from pywaffle import Waffle
+import datetime
 import numpy as np
 import seaborn as sns
 import os
@@ -79,14 +80,54 @@ def import_files(verbose=False):
 
     #Handle vaccines
     dfs = []
+    vac_2022_23 = [x for x in files_vac if "2023" in x]
     for i in range(3, 9):
-        df = pd.concat(import_excel_sheets(i, 4, files_vac))
-        df['sheet_origin'] = i
+        df = import_excel_sheets(i, 4, vac_2022_23)[0]
+        df['sheet_origin'] = i - 2
         dfs.append(df)
-    
-    df_vacs = pd.concat(dfs, axis=0, sort=False)
 
-    #Handle covid deaths by age by gender
+    df_vacs22_23 = pd.concat(dfs, axis=0, sort=False)
+    df_vacs22_23['Month'] = pd.to_datetime(df_vacs22_23['Month'], format='%b-%y' , errors='raise')
+    df_vacs22_23.dropna(subset=['Month'], inplace=True)
+
+
+    #For the 2021 set we have to match the sheet_origin index of the 22/23
+    #set, but there are no 3rd vaccine sheets. These occur at sheets 1 and 4.
+    #Therefore we manually count skipping the missing sheets.
+    #Both sets now have aligned 1...n sheet indices.
+    dfs = []
+    vac_2021 = [x for x in files_vac if "2021" in x]
+    j = 1
+    for i in range(2, 5):
+        j += 1
+        df = import_excel_sheets(i, 1, vac_2021)[0]
+        if j // 4 == 0:
+            j += 1
+            df['sheet_origin'] = j
+        else:
+            df['sheet_origin'] = j
+
+        dfs.append(df)
+
+    df_vacs21 = pd.concat(dfs, axis=0, sort=False)
+
+    df_vacs21.rename(columns={
+        'Number of people who have received two vaccinations':'Number of people who had received two vaccinations',
+        'Percentage of people who have received two vaccinations (%)':'Percentage of people who had received two vaccinations (%)',
+        'Age standardised percentage of people who have received two vaccinations (%)':'Age standardised percentage of people who had received two vaccinations (%)',
+        'Number of people who have not received a vaccination':'Number of people who had not received a vaccination',
+        'Percentage of people who have not received a vaccination (%)':'Percentage of people who had not received a vaccination (%)',
+        'Age standardised percentage of people who have not received a vaccination (%)':'Age standardised percentage of people who had not received a vaccination (%)'
+    }, inplace=True)
+
+    #Deal with notes at end of file and change string to proper datetime
+    #df_vacs21['Month'] = pd.to_datetime(df_vacs21['Month'], format='mixed', errors='coerce')
+    #df_vacs21['Month'] = df['Month'].apply(lambda x: datetime.datetime.strptime(x,'%b-Y').strftime('%b-%y'))
+    #df_vacs21.dropna(subset=['Month'], inplace=True)
+
+    df_vacs = pd.concat((df_vacs21, df_vacs22_23), axis=0, sort=False, ignore_index=True)
+
+    #Handle covid deaths by age and by gender
     
     #All by age
     df_cv19_age_all = pd.concat(import_excel_sheets(7, 6, files_deaths_post22, nrows=(64, 104)))
@@ -453,7 +494,60 @@ def deaths_analysis(dfs):
     plt.show()
 
 def vacs_analysis(dfs):
-    pass
+    df_vacs = get_df(dfs, 'df_vacs')
+
+    #replace NaNs and characters indicaters for suppressed values
+
+    df_vacs[['Category type','Category']].replace("NA", "Total")
+    df_vacs.fillna(0, inplace=True)
+    df_vacs.replace("x", 0, inplace=True)
+    df_vacs.replace("c", 0, inplace=True)
+
+    df_18_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 1]
+    df_18_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 2]
+    df_18_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 3]
+    df_50_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 4]
+    df_50_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 5]
+    df_50_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 6]
+
+    df_18_3_vacs = df_18_3_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+    df_18_2_vacs = df_18_2_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+    df_18_0_vacs = df_18_0_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+    df_50_3_vacs = df_50_3_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+    df_50_2_vacs = df_50_2_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+    df_50_0_vacs = df_50_0_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    dfs = [df_18_3_vacs.loc[(df_18_3_vacs['Category'] == 'Total') & (df_18_3_vacs['Sub-category'] == 'England')].sort_values(by='Month'),
+           df_18_2_vacs.loc[(df_18_2_vacs['Category'] == 'Total') & (df_18_2_vacs['Sub-category'] == 'England')].sort_values(by='Month'), 
+           df_18_0_vacs.loc[(df_18_0_vacs['Category'] == 'Total') & (df_18_0_vacs['Sub-category'] == 'England')].sort_values(by='Month'),
+           df_50_3_vacs.loc[(df_50_3_vacs['Category'] == 'Total') & (df_50_3_vacs['Sub-category'] == 'England')].sort_values(by='Month'), 
+           df_50_2_vacs.loc[(df_50_2_vacs['Category'] == 'Total') & (df_50_2_vacs['Sub-category'] == 'England')].sort_values(by='Month'),
+           df_50_0_vacs.loc[(df_50_0_vacs['Category'] == 'Total') & (df_50_0_vacs['Sub-category'] == 'England')].sort_values(by='Month')
+    ]
+
+    #monthly vaccine rates (all)
+
+    #We need to pull from a different column at different iterations
+    #!!!!! Need to make labels account for age range, 18 or 50+
+    #!!!!! Also debug why the two datasets aren't combined. Looks like 21 data is missing?
+    for i, df in enumerate(dfs):
+        if i == 0 or i == 3:
+            plt.plot(df['Month'], df['Age standardised percentage of people who had received three vaccinations (%)'],
+                     label='Three vaccinations %')
+        elif i == 1 or i == 4:
+            plt.plot(df['Month'], df['Age standardised percentage of people who had received two vaccinations (%)'],
+                     label='Two vaccinations %')
+        elif i == 2 or i == 5:
+            plt.plot(df['Month'], df['Age standardised percentage of people who had not received a vaccination (%)'],
+                     label='No vaccinations %')
+
+
+    plt.title("Proportion of vaccinated population (age standardised)")
+    plt.xlabel("Month")
+    plt.xticks(rotation=90)
+    plt.ylabel("% vaccinated")
+    plt.legend()
+    plt.show()
 
 def deaths_vacs_analysis(dfs):
     pass
@@ -463,7 +557,7 @@ def main(FIRST_RUN):
     #If not first run, get pre-serialised data files
 
     if FIRST_RUN:
-        dfs = import_files(verbose=True)
+        dfs = import_files(verbose=False)
 
         for df in dfs:
             df.to_pickle(f"{df.attrs['name']}.pkl")
@@ -482,7 +576,7 @@ def main(FIRST_RUN):
         for f in files:
             dfs.append(pd.read_pickle(f))
 
-    deaths_analysis(dfs)
+    #deaths_analysis(dfs)
     vacs_analysis(dfs)
     deaths_vacs_analysis(dfs)
 
