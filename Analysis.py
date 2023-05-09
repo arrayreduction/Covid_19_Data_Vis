@@ -6,6 +6,8 @@ from pywaffle import Waffle
 import datetime
 import numpy as np
 import seaborn as sns
+from plotly import graph_objects as go
+import json
 import os
 
 def import_excel_sheets(sheet_no, skiprows, files, nrows=None):
@@ -644,6 +646,124 @@ def vacs_analysis(dfs):
     plt.ylabel("% vaccinated")
     plt.legend()
     plt.show()
+
+    #Regional data. This time, for ease of comparison, we will look at just the
+    #percentage triple vaccinated. This is the 18+ tripel vac df
+
+    triple_vac = df_18_3_vacs.copy()
+
+    #Set filter
+
+    regions = ['East Midlands',
+               'East of England', 'London', 'North East', 'North West',
+               'South East', 'South West', 'West Midlands',
+               'Yorkshire and The Humber'
+                ]
+
+    triple_vac = triple_vac.loc[triple_vac['Category'] == 'Total']
+    triple_vac = triple_vac.loc[triple_vac['Sub-category'].apply(lambda x: x in regions)]
+
+    dfs = []
+
+    for i in range(len(regions)):
+        dfs.append(triple_vac.loc[triple_vac['Sub-category'] == regions[i]])
+        dfs[i].attrs['name'] = regions[i]
+        dfs[i] = dfs[i].drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    for df in dfs:
+        plt.plot(df['Month'], df['Percentage of people who had received three vaccinations (%)'],
+                    label=f"{df.attrs['name']} %")
+        #plt.fill_between(df['Month'], df['95% confidence interval - Lower bound'], df['95% confidence interval - Upper bound'])
+
+    plt.title("Proportion of fully vaccinated population (by region)")
+    plt.xlabel("Month")
+    plt.xticks(rotation=90)
+    plt.ylabel("% triple vaccinated")
+    plt.legend()
+    plt.show()
+
+    #regional chorpleth of triple vaccine rate
+    with open('nuts1.json') as f:
+        geo_uk = json.load(f)
+
+    fig = go.Figure(
+        go.Choroplethmapbox(
+            geojson = geo_uk,
+            featureidkey = "properties.NUTS112NM",
+            locations = triple_vac['Sub-category'],
+            z = triple_vac['Percentage of people who had received three vaccinations (%)'],
+            zauto = True,
+            colorscale = 'rdbu',
+            showscale = True,
+        )
+    )
+
+    fig.update_layout(
+        mapbox_style = "carto-positron",
+        mapbox_zoom = 6,
+        mapbox_center = {"lat": 55.37, "lon": 3.43},
+    )
+
+    fig.show()
+
+    #As above, but for 50+ exclusivley
+
+    triple_vac = df_50_3_vacs.copy()
+
+    #Set filter
+
+    regions = ['East Midlands',
+               'East of England', 'London', 'North East', 'North West',
+               'South East', 'South West', 'West Midlands',
+               'Yorkshire and The Humber'
+                ]
+
+    triple_vac = triple_vac.loc[triple_vac['Category'] == 'Total']
+    triple_vac = triple_vac.loc[triple_vac['Sub-category'].apply(lambda x: x in regions)]
+
+    dfs = []
+
+    for i in range(len(regions)):
+        dfs.append(triple_vac.loc[triple_vac['Sub-category'] == regions[i]])
+        dfs[i].attrs['name'] = regions[i]
+        dfs[i] = dfs[i].drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    for df in dfs:
+        plt.plot(df['Month'], df['Percentage of people who had received three vaccinations (%)'],
+                    label=f"{df.attrs['name']} %")
+        #plt.fill_between(df['Month'], df['95% confidence interval - Lower bound'], df['95% confidence interval - Upper bound'])
+
+    plt.title("Proportion of fully vaccinated population, 50+, (by region)")
+    plt.xlabel("Month")
+    plt.xticks(rotation=90)
+    plt.ylabel("% triple vaccinated")
+    plt.legend()
+    plt.show()
+
+    #regional chorpleth of triple vaccine rate
+    with open('nuts1.json') as f:
+        geo_uk = json.load(f)
+
+    fig = go.Figure(
+        go.Choroplethmapbox(
+            geojson = geo_uk,
+            featureidkey = "properties.NUTS112NM", 
+            locations = triple_vac['Sub-category'], 
+            z = triple_vac['Percentage of people who had received three vaccinations (%)'], 
+            zauto = True,
+            colorscale = 'rdbu',
+            showscale = True,
+        )
+    )
+
+    fig.update_layout(
+        mapbox_style = "carto-positron", 
+        mapbox_zoom = 6, 
+        mapbox_center = {"lat": 55.37, "lon": 3.43},
+    )
+
+    fig.show()
+
 
 def deaths_vacs_analysis(dfs):
     pass
