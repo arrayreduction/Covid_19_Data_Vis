@@ -330,6 +330,43 @@ def import_files(verbose=False):
 
     return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_by_gender, df_de_by_gender, df_cv19_region, df_de_region]
 
+def get_vac_slices(df_vacs):
+    '''Unpack the concatenated vaccination dataframe into individual frames for each type of data.'''
+
+    df_vacs = df_vacs.copy()
+
+    df_18_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 1]
+    df_18_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 2]
+    df_18_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 3]
+    df_50_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 4]
+    df_50_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 5]
+    df_50_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 6]
+
+    df_18_3_vacs.attrs['name'] = "18+ three vaccines"
+    df_18_2_vacs.attrs['name'] = "18+ two vaccines"
+    df_18_0_vacs.attrs['name'] = "18+ no vaccines"
+    df_50_3_vacs.attrs['name'] = "50+ three vaccines"
+    df_50_2_vacs.attrs['name'] = "50+ two vaccines"
+    df_50_0_vacs.attrs['name'] = "50+ no vaccines"
+
+    #The older style data put sex in category rather than a seperate sex column. Move it across.
+
+    df_18_3_vacs.loc[:,'Sex'] = df_18_3_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+    df_18_2_vacs.loc[:,'Sex'] = df_18_2_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+    df_18_0_vacs.loc[:,'Sex'] = df_18_0_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+    df_50_3_vacs.loc[:,'Sex'] = df_50_3_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+    df_50_2_vacs.loc[:,'Sex'] = df_50_2_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+    df_50_0_vacs.loc[:,'Sex'] = df_50_0_vacs.apply(lambda x: x.Sex if (x['Category type'] != 'Sex') else x.Category, axis=1)
+
+    df_18_3_vacs['Sex'] = df_18_3_vacs['Sex'].fillna('Persons')
+    df_18_2_vacs['Sex'] = df_18_2_vacs['Sex'].fillna('Persons')
+    df_18_0_vacs['Sex'] = df_18_0_vacs['Sex'].fillna('Persons')
+    df_50_3_vacs['Sex'] = df_50_3_vacs['Sex'].fillna('Persons')
+    df_50_2_vacs['Sex'] = df_50_2_vacs['Sex'].fillna('Persons')
+    df_50_0_vacs['Sex'] = df_50_0_vacs['Sex'].fillna('Persons')
+
+    return df_18_3_vacs, df_18_2_vacs, df_18_0_vacs, df_50_3_vacs, df_50_2_vacs, df_50_0_vacs
+
 def get_df(dfs, df_name):
     '''Convience function. Returns the named df from the list of dfs.
     Relies on the fact we have previous set the df.attrs['name'] attribute.'''
@@ -496,6 +533,8 @@ def deaths_analysis(dfs):
 def vacs_analysis(dfs):
     df_vacs = get_df(dfs, 'df_vacs')
 
+    sns.set_theme()
+
     #replace NaNs and characters indicaters for suppressed values
     df_vacs[['Category type','Category']] = df_vacs[['Category type','Category']].fillna("Total")
     df_vacs.fillna(0, inplace=True)
@@ -503,61 +542,103 @@ def vacs_analysis(dfs):
     df_vacs.replace("c", 0, inplace=True)
 #    df_vacs.to_excel("Test_dump.xlsx")
 
-    df_18_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 1]
-    df_18_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 2]
-    df_18_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 3]
-    df_50_3_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 4]
-    df_50_2_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 5]
-    df_50_0_vacs = df_vacs.loc[df_vacs['sheet_origin'] == 6]
-
-    df_18_3_vacs.attrs['name'] = "18+ three vaccines"
-    df_18_2_vacs.attrs['name'] = "18+ two vaccines"
-    df_18_0_vacs.attrs['name'] = "18+ no vaccines"
-    df_50_3_vacs.attrs['name'] = "50+ three vaccines"
-    df_50_2_vacs.attrs['name'] = "50+ two vaccines"
-    df_50_0_vacs.attrs['name'] = "50+ no vaccines"
-
-    df_18_3_vacs = df_18_3_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-    df_18_2_vacs = df_18_2_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-    df_18_0_vacs = df_18_0_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-    df_50_3_vacs = df_50_3_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-    df_50_2_vacs = df_50_2_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-    df_50_0_vacs = df_50_0_vacs.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
-
-    #The older style data put sex in categrogry rather than a seperate sex column. Move it across.
-
-    df_18_3_vacs['Sex'] = df_18_3_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-    df_18_2_vacs['Sex'] = df_18_2_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-    df_18_0_vacs['Sex'] = df_18_0_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-    df_50_3_vacs['Sex'] = df_50_3_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-    df_50_2_vacs['Sex'] = df_50_2_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-    df_50_0_vacs['Sex'] = df_50_0_vacs.apply(lambda x: 'Persons' if x.Category != 'Female' and x.Category != 'Male' else x.Category, axis=1)
-
-    dfs = [df_18_3_vacs.loc[(df_18_3_vacs['Category'] == 'Total') & (df_18_3_vacs['Sub-category'] == 'England') & (df_18_3_vacs['Sex'] == 'Persons')].sort_values(by='Month'),
-           df_18_2_vacs.loc[(df_18_2_vacs['Category'] == 'Total') & (df_18_2_vacs['Sub-category'] == 'England') & (df_18_2_vacs['Sex'] == 'Persons')].sort_values(by='Month'), 
-           df_18_0_vacs.loc[(df_18_0_vacs['Category'] == 'Total') & (df_18_0_vacs['Sub-category'] == 'England') & (df_18_0_vacs['Sex'] == 'Persons')].sort_values(by='Month'),
-           df_50_3_vacs.loc[(df_50_3_vacs['Category'] == 'Total') & (df_50_3_vacs['Sub-category'] == 'England') & (df_50_3_vacs['Sex'] == 'Persons')].sort_values(by='Month'), 
-           df_50_2_vacs.loc[(df_50_2_vacs['Category'] == 'Total') & (df_50_2_vacs['Sub-category'] == 'England') & (df_50_2_vacs['Sex'] == 'Persons')].sort_values(by='Month'),
-           df_50_0_vacs.loc[(df_50_0_vacs['Category'] == 'Total') & (df_50_0_vacs['Sub-category'] == 'England') & (df_50_0_vacs['Sex'] == 'Persons')].sort_values(by='Month')
-    ]
-
     #monthly vaccine rates (all)
 
+    df_18_3_vacs, df_18_2_vacs, df_18_0_vacs, df_50_3_vacs, df_50_2_vacs, df_50_0_vacs = get_vac_slices(df_vacs)
+
+    dfs = [df_18_3_vacs.copy(), df_18_2_vacs.copy(), df_18_0_vacs.copy(), df_50_3_vacs.copy(), df_50_2_vacs.copy(), 
+           df_50_0_vacs.copy()]
+
+    #Set filter
+
+    for i, df in enumerate(dfs):
+        dfs[i] = df.loc[(df['Category'] == 'Total') & (df['Sub-category'] == 'England') & (df['Sex'] == 'Persons')]
+
+    #remove duplicates
+
+    for i, df in enumerate(dfs):
+        dfs[i] = df.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
     #We need to pull from a different column at different iterations
-    #!!!!! Also debug why the two datasets aren't combined. Looks like 21 data is missing?
     for i, df in enumerate(dfs):
         if i == 0 or i == 3:
-            plt.plot(df['Month'], df['Age standardised percentage of people who had received three vaccinations (%)'],
+            plt.plot(df['Month'], df['Percentage of people who had received three vaccinations (%)'],
                      label=f"{df.attrs['name']} %")
         elif i == 1 or i == 4:
-            plt.plot(df['Month'], df['Age standardised percentage of people who had received two vaccinations (%)'],
+            plt.plot(df['Month'], df['Percentage of people who had received two vaccinations (%)'],
                      label=f"{df.attrs['name']} %")
         elif i == 2 or i == 5:
-            plt.plot(df['Month'], df['Age standardised percentage of people who had not received a vaccination (%)'],
+            plt.plot(df['Month'], df['Percentage of people who had not received a vaccination (%)'],
                      label=f"{df.attrs['name']} %")
 
 
-    plt.title("Proportion of vaccinated population (age standardised)")
+    plt.title("Proportion of vaccinated population")
+    plt.xlabel("Month")
+    plt.xticks(rotation=90)
+    plt.ylabel("% vaccinated")
+    plt.legend()
+    plt.show()
+
+    #By gender, male then female
+
+#    df_18_3_vacs, df_18_2_vacs, df_18_0_vacs, df_50_3_vacs, df_50_2_vacs, df_50_0_vacs = get_vac_slices(df_vacs)
+
+    dfs = [df_18_3_vacs.copy(), df_18_2_vacs.copy(), df_18_0_vacs.copy(), df_50_3_vacs.copy(), df_50_2_vacs.copy(), 
+           df_50_0_vacs.copy()]
+
+    #Set filter
+
+    for i, df in enumerate(dfs):
+        dfs[i] = df.loc[((df['Category'] == 'Total') | (df['Category'] == 'Sex')) & (df['Sub-category'] == 'England') & (df['Sex'] == 'Male')]
+
+    #remove duplicates
+    for df in dfs:
+        df = df.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    for i, df in enumerate(dfs):
+        if i == 0 or i == 3:
+            plt.plot(df['Month'], df['Percentage of people who had received three vaccinations (%)'],
+                     label=f"{df.attrs['name']} %")
+        elif i == 1 or i == 4:
+            plt.plot(df['Month'], df['Percentage of people who had received two vaccinations (%)'],
+                     label=f"{df.attrs['name']} %")
+        elif i == 2 or i == 5:
+            plt.plot(df['Month'], df['Percentage of people who had not received a vaccination (%)'],
+                     label=f"{df.attrs['name']} %")
+
+
+    plt.title("Proportion of vaccinated population (males)")
+    plt.xlabel("Month")
+    plt.xticks(rotation=90)
+    plt.ylabel("% vaccinated")
+    plt.legend()
+    plt.show()
+
+    dfs = [df_18_3_vacs.copy(), df_18_2_vacs.copy(), df_18_0_vacs.copy(), df_50_3_vacs.copy(), df_50_2_vacs.copy(), 
+           df_50_0_vacs.copy()]
+
+    #Set filter
+
+    for i, df in enumerate(dfs):
+        dfs[i] = df.loc[((df['Category'] == 'Total') | (df['Category'] == 'Sex')) & (df['Sub-category'] == 'England') & (df['Sex'] == 'Female')]
+
+    #remove duplicates
+    for df in dfs:
+        df = df.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    for i, df in enumerate(dfs):
+        if i == 0 or i == 3:
+            plt.plot(df['Month'], df['Percentage of people who had received three vaccinations (%)'],
+                     label=f"{df.attrs['name']} %")
+        elif i == 1 or i == 4:
+            plt.plot(df['Month'], df['Percentage of people who had received two vaccinations (%)'],
+                     label=f"{df.attrs['name']} %")
+        elif i == 2 or i == 5:
+            plt.plot(df['Month'], df['Percentage of people who had not received a vaccination (%)'],
+                     label=f"{df.attrs['name']} %")
+
+
+    plt.title("Proportion of vaccinated population (Females)")
     plt.xlabel("Month")
     plt.xticks(rotation=90)
     plt.ylabel("% vaccinated")
@@ -596,5 +677,5 @@ def main(FIRST_RUN):
     deaths_vacs_analysis(dfs)
 
 if __name__ == '__main__':
-    FIRST_RUN = True
+    FIRST_RUN = False
     main(FIRST_RUN)
