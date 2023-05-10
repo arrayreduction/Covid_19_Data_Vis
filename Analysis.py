@@ -643,7 +643,6 @@ def vacs_analysis(dfs):
     df_vacs.fillna(0, inplace=True)
     df_vacs.replace("x", 0, inplace=True)
     df_vacs.replace("c", 0, inplace=True)
-#    df_vacs.to_excel("Test_dump.xlsx")
 
     #monthly vaccine rates (all)
 
@@ -867,7 +866,132 @@ def vacs_analysis(dfs):
 
 
 def deaths_vacs_analysis(dfs):
-    pass
+    df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number']).sort_values(by='Week ending')
+    df_cv19_region = get_df(dfs, 'df_cv19_region').drop(columns=['Week number', 'Wales']).sort_values(by='Week ending')
+    df_age_pop = get_df(dfs, 'df_pop_age')
+    df_region_pop = get_df(dfs, 'df_pop_region')
+    df_vacs = get_df(dfs, 'df_vacs')
+
+    sns.set_theme()
+
+    #Prepare vaccines
+
+    #replace NaNs and characters indicaters for suppressed values
+    df_vacs[['Category type','Category']] = df_vacs[['Category type','Category']].fillna("Total")
+    df_vacs.fillna(0, inplace=True)
+    df_vacs.replace("x", 0, inplace=True)
+    df_vacs.replace("c", 0, inplace=True)
+
+    #monthly vaccine rates (all)
+
+    df_18_3_vacs, df_18_2_vacs, df_18_0_vacs, df_50_3_vacs, df_50_2_vacs, df_50_0_vacs = get_vac_slices(df_vacs)
+
+    dfs_vacs = [df_18_3_vacs.copy(), df_18_2_vacs.copy(), df_18_0_vacs.copy(), df_50_3_vacs.copy(), df_50_2_vacs.copy(), 
+           df_50_0_vacs.copy()]
+    dfs_vacs_all_adults = dfs_vacs[0:3]
+    
+    #Prepare the population by age data. 
+    #We group by age first to collapse cities into an all England figure,
+    #then group by age bin in line with our deaths data
+
+    df_age_pop = df_age_pop.groupby(['Age (101 categories) Code'])['Observation'].agg('sum').reset_index()
+
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
+    bins = categories.copy()
+
+    #Expand hypenated ranges
+    #e.g 1-5 -> 1,2,3,4,5
+
+    categories[0] = "0-1"
+    categories[-1] = "90-100"
+
+    for i, cat in enumerate(categories):
+        split = cat.split('-')
+        categories[i] = list(range(int(split[0]), int(split[1]) + 1))
+
+    #test whether age is in each category and assign the assiociated bin
+    #then group by bin
+
+    df_age_pop['bin'] = df_age_pop['Age (101 categories) Code'].apply(fill_pop_bins, args=(categories, bins))
+    df_age_pop = df_age_pop.groupby(['bin'])['Observation'].agg('sum')
+
+    #Get standardisation factor. This is just the fraction of population in each bin
+    total = df_age_pop.sum()
+    df_age_pop = df_age_pop.to_frame()
+    df_age_pop['factor'] = df_age_pop / total
+
+    df_age_pop = df_age_pop.reset_index().pivot(columns='bin', values='factor')
+
+    #For the region data we simply need to calculate the factor
+    total = df_region_pop.iloc[:, 1].sum()
+    df_region_pop['factor'] = df_region_pop.iloc[:, 1] / total
+
+    df_region_pop = df_region_pop.reset_index().pivot(columns='Population', values='factor')
+
+    #Regroup cv19 deaths data by month, to align with vaccine data
+    df_cv19_all.set_index('Week ending', inplace=True)
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
+    df_cv19_all = df_cv19_all.groupby(pd.Grouper(freq='MS'))[categories].agg('sum')
+
+    #population standardisation
+
+    for col in categories:
+        df_cv19_all[col] = df_cv19_all[col] * df_age_pop[col].dropna().squeeze()
+
+    categories = [x for x in df_cv19_region.columns if x != 'Week ending' and x != 'rank']
+    for col in categories:
+        df_cv19_region[col] = df_cv19_region[col] * df_region_pop[col].dropna().squeeze()
+
+    #Build new dataframes with features we want for correlation analysis
+
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
+
+    df_cv19_age_vacs = pd.DataFrame()
+
+    for col in categories:
+        df_cv19_age_vacs[col] = df_cv19_all[col]
+
+    #Set filter for vaccination data, and then add their features to the new dataframe
+
+    for i, df in enumerate(dfs_vacs_all_adults):
+        dfs_vacs_all_adults[i] = df.loc[(df['Category'] == 'Total') & (df['Sub-category'] == 'England') & (df['Sex'] == 'Persons')]
+
+    for i, df in enumerate(dfs_vacs_all_adults):
+        dfs_vacs_all_adults[i] = df.drop_duplicates(subset='Month', keep='first').sort_values(by='Month')
+
+    allow_columns = ['Percentage of people who had not received a vaccination (%)',
+                     'Percentage of people who had received two vaccinations (%)',
+                    'Percentage of people who had received three vaccinations (%)'
+    ]
+
+    #drop unused columns from each, leaving only the one data column plus metadata.
+    dfs_vacs_all_adults[0] = dfs_vacs_all_adults[0].drop(columns=['Percentage of people who had not received a vaccination (%)',
+                                                                'Percentage of people who had received two vaccinations (%)',])
+    dfs_vacs_all_adults[1] = dfs_vacs_all_adults[1].drop(columns=['Percentage of people who had not received a vaccination (%)',
+                                                                'Percentage of people who had received three vaccinations (%)'])
+    dfs_vacs_all_adults[2] = dfs_vacs_all_adults[2].drop(columns=['Percentage of people who had received two vaccinations (%)',
+                                                            'Percentage of people who had received three vaccinations (%)'])
+
+    #Add the data column from each vaccine df to the df we are building, ignoring all metadata
+
+    for i, df in enumerate(dfs_vacs_all_adults):
+        dfs_vacs_all_adults[i] = df.set_index('Month')
+
+        for col in dfs_vacs_all_adults[i].columns:
+            if col in allow_columns:
+                df_cv19_age_vacs[col] = dfs_vacs_all_adults[i][col]
+
+    exclude_columns = ['<1','01-04','05-09','10-14']
+    corr_cols = [x for x in df_cv19_age_vacs.columns if x not in exclude_columns]
+    df_age_corr = df_cv19_age_vacs[corr_cols]
+    df_age_corr.rename(columns={'Percentage of people who had not received a vaccination (%)':'No Vaccine (%)',
+                                  'Percentage of people who had received two vaccinations (%)':'Two Vaccines (%)',
+                                  'Percentage of people who had received three vaccinations (%)':'Three Vaccines (%)'
+                                }, inplace=True)
+    df_age_corr = df_age_corr.corr(method='pearson')
+
+    sns.heatmap(df_age_corr, annot=True)
+    plt.show()
 
 def main(FIRST_RUN):
     #import main files and serialise. 
