@@ -63,10 +63,11 @@ def import_files(verbose=False):
     if os.name == 'nt':
         deaths_dir = r"C:\Users\yblad\Documents\For Bsc\Year 3\Data Vis\Assessment\Data\Deaths registered by year"
         vaccine_dir = r"C:\Users\yblad\Documents\For Bsc\Year 3\Data Vis\Assessment\Data\Vaccination"
+        other_dir = r"C:\Users\yblad\Documents\For Bsc\Year 3\Data Vis\Assessment\Data\Other"
     elif os.name == 'posix':
         deaths_dir = r"/mnt/c/Documents and Settings/yblad/Documents/For Bsc/Year 3/Data Vis/Assessment/Data/Deaths registered by year"
         vaccine_dir = r"/mnt/c/Documents and Settings/yblad/Documents/For Bsc/Year 3/Data Vis/Assessment/Data/Vaccination"
-
+        other_dir = r"/mnt/c/Documents and Settings/yblad/Documents/For Bsc/Year 3/Data Vis/Assessment/Data/Other"
 
     #Post 2022 deaths
     files_deaths_post22 = get_files("Post22", deaths_dir)
@@ -292,6 +293,22 @@ def import_files(verbose=False):
     df_de_by_gender = pd.concat((df_de_age_male, df_de_age_female))
     df_de_by_gender.attrs['name'] = 'df_de_by_gender'
 
+    #Get population by age. This comes on a per city per year of age basis, so we need to re-bin it
+    #This is left to the analysis calls as we will bin differently at different stages
+    if os.name == 'nt':
+        df_pop_age = pd.read_excel(other_dir + "\Population by age.xlsx", sheet_name=0)
+    elif os.name == 'posix':
+        df_pop_age = pd.read_excel(other_dir + "/Population by age.xlsx", sheet_name=0)
+
+    #Get regional population by (ITL1) upper region
+    if os.name == 'nt':
+        df_pop_region = pd.read_excel(other_dir + "\Population by region.xlsx", sheet_name=1)
+    elif os.name == 'posix':
+        df_pop_region = pd.read_excel(other_dir + "/Population by region.xlsx", sheet_name=1)
+
+    df_pop_region.attrs['name'] = 'df_pop_region'
+    df_pop_age.attrs['name'] ='df_pop_age'
+
     if verbose:
         df_2020_cv_all.info()
         print(df_2020_cv_all.head(20))
@@ -330,7 +347,7 @@ def import_files(verbose=False):
         df_cv19_region.info()
         df_de_region.info()
 
-    return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_by_gender, df_de_by_gender, df_cv19_region, df_de_region]
+    return [df_vacs, df_cv19_age_all, df_de_age_all, df_cv19_by_gender, df_de_by_gender, df_cv19_region, df_de_region, df_pop_age, df_pop_region]
 
 def get_vac_slices(df_vacs):
     '''Unpack the concatenated vaccination dataframe into individual frames for each type of data.'''
@@ -369,9 +386,23 @@ def get_vac_slices(df_vacs):
 
     return df_18_3_vacs, df_18_2_vacs, df_18_0_vacs, df_50_3_vacs, df_50_2_vacs, df_50_0_vacs
 
+def fill_pop_bins(x, cats, bins):
+    '''Returns the bins for the associated matching category,
+    or null string if not found'''
+    for i, cat in enumerate(cats):
+        if int(x) in cat:
+            return bins[i]
+        else:
+            pass
+    
+    return ""
+
 def get_df(dfs, df_name):
-    '''Convience function. Returns the named df from the list of dfs.
-    Relies on the fact we have previous set the df.attrs['name'] attribute.'''
+    '''Convenience function. Returns the named df from the list of dfs.
+    Relies on the fact we have previous set the df.attrs['name'] attribute.
+    
+    This would be more efficient if it were refactored such that the dfs are in a
+    dict which we can query, but as the list is short this is fast enough.'''
 
     df = [x for x in dfs if x.attrs['name'] == df_name]
 
@@ -387,9 +418,49 @@ def deaths_analysis(dfs):
 
     df_cv19_all = get_df(dfs, 'df_cv19_age_all').drop(columns=['Week number']).sort_values(by='Week ending')
     df_cv19_gender = get_df(dfs, 'df_cv19_by_gender').drop(columns=['Week number']).sort_values(by='Week ending')
-    df_cv19_region = get_df(dfs, 'df_cv19_region').drop(columns='Week number').sort_values(by='Week ending')
+    df_cv19_region = get_df(dfs, 'df_cv19_region').drop(columns=['Week number', 'Wales']).sort_values(by='Week ending')
     df_de_all = get_df(dfs, 'df_de_age_all').drop(columns=['Week number']).sort_values(by='Week ending') 
     df_de_gender = get_df(dfs, 'df_de_by_gender').drop(columns=['Week number','All ages']).sort_values(by='Week ending')
+    df_age_pop = get_df(dfs, 'df_pop_age')
+    df_region_pop = get_df(dfs, 'df_pop_region')
+
+    #Prepare the population by age data. 
+    #We group by age first to collapse cities into an all England figure,
+    #then group by age bin in line with our deaths data
+
+    df_age_pop = df_age_pop.groupby(['Age (101 categories) Code'])['Observation'].agg('sum').reset_index()
+
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
+    bins = categories.copy()
+
+    #Expand hypenated ranges
+    #e.g 1-5 -> 1,2,3,4,5
+
+    categories[0] = "0-1"
+    categories[-1] = "90-100"
+
+    for i, cat in enumerate(categories):
+        split = cat.split('-')
+        categories[i] = list(range(int(split[0]), int(split[1]) + 1))
+
+    #test whether age is in each category and assign the assiociated bin
+    #then group by bin
+
+    df_age_pop['bin'] = df_age_pop['Age (101 categories) Code'].apply(fill_pop_bins, args=(categories, bins))
+    df_age_pop = df_age_pop.groupby(['bin'])['Observation'].agg('sum')
+
+    #Get standardisation factor. This is just the fraction of population in each bin
+    total = df_age_pop.sum()
+    df_age_pop = df_age_pop.to_frame()
+    df_age_pop['factor'] = df_age_pop / total
+
+    df_age_pop = df_age_pop.reset_index().pivot(columns='bin', values='factor')
+
+    #For the region data we simply need to calculate the factor
+    total = df_region_pop.iloc[:, 1].sum()
+    df_region_pop['factor'] = df_region_pop.iloc[:, 1] / total
+
+    df_region_pop = df_region_pop.reset_index().pivot(columns='Population', values='factor')
 
     sns.set_theme()
 
@@ -530,6 +601,36 @@ def deaths_analysis(dfs):
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("% of deaths")
+    plt.show()
+
+    #Rerun of some of the above with addition of population standardisation
+    df_cv19_all.reset_index(inplace=True)
+    categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
+    
+    for col in categories:
+        df_cv19_all[col] = df_cv19_all[col] * df_age_pop[col].dropna().squeeze()
+
+    normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
+    plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
+    plt.title("Covid proportion of 19 deaths by age group, population standardised")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("Deaths (normalised)")
+    plt.legend()
+    plt.show()
+
+    #same for region
+    categories = [x for x in df_cv19_region.columns if x != 'Week ending' and x != 'rank']
+    for col in categories:
+        df_cv19_region[col] = df_cv19_region[col] * df_region_pop[col].dropna().squeeze()
+
+    normalised = df_cv19_region[categories].divide(df_cv19_region[categories].sum(axis=1), axis=0)
+    plt.stackplot(df_cv19_region['Week ending'], normalised.T, labels=categories)
+    plt.title("Covid proportion of 19 deaths by region, population standardised")
+    plt.xlabel("Week ending")
+    plt.xticks(rotation=90)
+    plt.ylabel("Deaths (normalised)")
+    plt.legend()
     plt.show()
 
 def vacs_analysis(dfs):
@@ -769,7 +870,7 @@ def deaths_vacs_analysis(dfs):
     pass
 
 def main(FIRST_RUN):
-    #import files and serialise. 
+    #import main files and serialise. 
     #If not first run, get pre-serialised data files
 
     if FIRST_RUN:
@@ -792,7 +893,7 @@ def main(FIRST_RUN):
         for f in files:
             dfs.append(pd.read_pickle(f))
 
-    #deaths_analysis(dfs)
+    deaths_analysis(dfs)
     vacs_analysis(dfs)
     deaths_vacs_analysis(dfs)
 
