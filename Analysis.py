@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import rankdata
 from collections import defaultdict
 from pywaffle import Waffle
-import datetime
 import numpy as np
 import seaborn as sns
 from plotly import graph_objects as go
@@ -786,12 +785,14 @@ def vacs_analysis(dfs):
     with open('nuts1.json') as f:
         geo_uk = json.load(f)
 
+    z = triple_vac.groupby('Sub-category')['Percentage of people who had received three vaccinations (%)'].agg('max')
+
     fig = go.Figure(
         go.Choroplethmapbox(
             geojson = geo_uk,
             featureidkey = "properties.NUTS112NM",
             locations = triple_vac['Sub-category'],
-            z = triple_vac['Percentage of people who had received three vaccinations (%)'],
+            z = z,
             zauto = True,
             colorscale = 'rdbu',
             showscale = True,
@@ -844,12 +845,14 @@ def vacs_analysis(dfs):
     with open('nuts1.json') as f:
         geo_uk = json.load(f)
 
+    z = triple_vac.groupby('Sub-category')['Percentage of people who had received three vaccinations (%)'].agg('max')
+
     fig = go.Figure(
         go.Choroplethmapbox(
             geojson = geo_uk,
             featureidkey = "properties.NUTS112NM", 
             locations = triple_vac['Sub-category'], 
-            z = triple_vac['Percentage of people who had received three vaccinations (%)'], 
+            z = z, 
             zauto = True,
             colorscale = 'rdbu',
             showscale = True,
