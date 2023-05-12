@@ -632,6 +632,38 @@ def deaths_analysis(dfs):
     plt.legend()
     plt.show()
 
+    #Using the population standardised data, create choropleth map of total deaths p/region
+    #We normalise the data again to make the scale make sense, but this time we use a different method
+    #as we are getting the normalised total rather than the normalised figure per week
+    #We multiply be 100 to make the scale the same on all choropleths (% rather than decimal)
+
+    with open('nuts1.json') as f:
+        geo_uk = json.load(f)
+
+    z = df_cv19_region[categories].sum(axis=0).divide(df_cv19_region[categories].sum(axis=0).sum()) * 100
+
+    fig = go.Figure(
+        go.Choroplethmapbox(
+            geojson = geo_uk,
+            featureidkey = "properties.NUTS112NM", 
+            locations = categories, 
+            z = z, 
+            zauto = True,
+            colorscale = 'rdbu',
+            showscale = True,
+            reversescale= True
+        )
+    )
+
+    fig.update_layout(
+        mapbox_style = "carto-positron", 
+        mapbox_zoom = 5.5, 
+        mapbox_center = {"lat": 52.53, "lon": 1.77},
+        title = "Deaths by region (population standardised)"
+    )
+
+    fig.show()
+
 def vacs_analysis(dfs):
     df_vacs = get_df(dfs, 'df_vacs')
 
@@ -801,8 +833,9 @@ def vacs_analysis(dfs):
 
     fig.update_layout(
         mapbox_style = "carto-positron",
-        mapbox_zoom = 6,
-        mapbox_center = {"lat": 55.37, "lon": 3.43},
+        mapbox_zoom = 5.5,
+        mapbox_center = {"lat": 52.53, "lon": 1.77},
+        title = "Fully vaccinated population by region (all adults)"
     )
 
     fig.show()
@@ -841,9 +874,7 @@ def vacs_analysis(dfs):
     plt.legend()
     plt.show()
 
-    #regional chorpleth of triple vaccine rate
-    with open('nuts1.json') as f:
-        geo_uk = json.load(f)
+    #regional chorpleth of triple vaccine rate (50+)
 
     z = triple_vac.groupby('Sub-category')['Percentage of people who had received three vaccinations (%)'].agg('max')
 
@@ -861,8 +892,9 @@ def vacs_analysis(dfs):
 
     fig.update_layout(
         mapbox_style = "carto-positron", 
-        mapbox_zoom = 6, 
-        mapbox_center = {"lat": 55.37, "lon": 3.43},
+        mapbox_zoom = 5.5, 
+        mapbox_center = {"lat": 52.53, "lon": 1.77},
+        title = "Fully vaccinated population by region (50+ years old)"
     )
 
     fig.show()
