@@ -6,6 +6,8 @@ from pywaffle import Waffle
 import numpy as np
 import seaborn as sns
 from plotly import graph_objects as go
+from scipy.stats import mannwhitneyu
+import datetime as dt
 import json
 import os
 
@@ -461,7 +463,7 @@ def deaths_analysis(dfs):
 
     df_region_pop = df_region_pop.reset_index().pivot(columns='Population', values='factor')
 
-    sns.set_theme()
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('hls', 20))
 
     #Proportion of c19 cases in each age bracket over time
     categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
@@ -470,18 +472,20 @@ def deaths_analysis(dfs):
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths")
-    plt.legend()
+    plt.legend(reverse=True)
     plt.show()
 
-    #get normalised data by dividing each datum b the total for that date
+    #get normalised data by dividing each datum by the total for that date
     normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
-    plt.title("Covid proportion of 19 deaths by age group")
+    plt.title("Proportion of covid-19 deaths by age group")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
-    plt.legend()
+    plt.legend(reverse=True)
     plt.show()
+
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('muted'))
 
     #As above, but by gender
     #We need to stack the male/female totals side by side, then normalise
@@ -506,7 +510,7 @@ def deaths_analysis(dfs):
     categories = [x for x in df_cv19_region.columns if x != 'Week ending']
     normalised = df_cv19_region[categories].divide(df_cv19_region[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_region['Week ending'], normalised.T, labels=categories)
-    plt.title("Covid proportion of 19 deaths by region")
+    plt.title("Proportion of covid-19 deaths by region")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
@@ -577,6 +581,8 @@ def deaths_analysis(dfs):
     fig.supxlabel('1 block = 2% of deaths', fontsize=8, ha='right')
     plt.show()
 
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('hls', 20))
+
     #Lineplot of proportion of deaths over time for each group
 
     for i , col in enumerate(categories):
@@ -586,8 +592,10 @@ def deaths_analysis(dfs):
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("% of deaths")
-    plt.legend()
+    plt.legend(reverse=True)
     plt.show()
+
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('muted'))
 
     #Lineplot proportion of deaths over time all combined
     df_de_all['All ages'] = df_de_all['All ages'].where(df_de_all['All ages'].isnull() == False, df_de_all[categories].sum(axis=1))
@@ -596,13 +604,31 @@ def deaths_analysis(dfs):
     df_cv19_prop['all'] = df_cv19_prop['all'].where(df_cv19_prop['all'] != np.inf, 0)
     plt.plot(df_cv19_all.index, df_cv19_prop['all'], label='All data')
 
-    plt.title("Proportion of covid deaths in all age groups")
+    plt.title("Proportion of covid deaths in England and Wales")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("% of deaths")
     plt.show()
 
+    #get stats of settled behaviour
+
+    #We get the slice between the dates we see for the two cycles on the graph
+    #using searchsorted() and dt.datetime()
+
+    cycle1 = df_cv19_prop.iloc[df_cv19_prop.index.searchsorted(dt.datetime(2021, 9, 1)):df_cv19_prop.index.searchsorted(dt.datetime(2022, 4, 1))]
+    print(cycle1['all'].describe())
+
+    cycle2 = df_cv19_prop.iloc[df_cv19_prop.index.searchsorted(dt.datetime(2021, 4, 1)):df_cv19_prop.index.searchsorted(dt.datetime(2023, 5, 31))]
+    print(cycle2['all'].describe())
+
+    U1, p = mannwhitneyu(cycle2['all'], cycle1['all'], alternative='less')
+    print(p)
+
     #Rerun of some of the above with addition of population standardisation
+    #Age based stacked area
+
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('hls', 20))
+
     df_cv19_all.reset_index(inplace=True)
     categories = [x for x in df_cv19_all.columns if x != 'Week ending' and x!= 'All ages']
     
@@ -611,21 +637,24 @@ def deaths_analysis(dfs):
 
     normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
-    plt.title("Covid proportion of 19 deaths by age group, population standardised")
+    plt.title("Proportion of covid-19 deaths by age group(population standardised)")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
-    plt.legend()
+    plt.legend(reverse=True)
     plt.show()
 
     #same for region
+
+    sns.set_theme(style='darkgrid', palette=sns.color_palette('muted'))
+
     categories = [x for x in df_cv19_region.columns if x != 'Week ending' and x != 'rank']
     for col in categories:
         df_cv19_region[col] = df_cv19_region[col] * df_region_pop[col].dropna().squeeze()
 
     normalised = df_cv19_region[categories].divide(df_cv19_region[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_region['Week ending'], normalised.T, labels=categories)
-    plt.title("Covid proportion of 19 deaths by region, population standardised")
+    plt.title("Proportion of covid-19 deaths by region(population standardised)")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
@@ -663,6 +692,19 @@ def deaths_analysis(dfs):
     )
 
     fig.show()
+
+    #Also create population standardised line graphs (as ridgeline-like FacetGrid) of deaths
+
+    melt = df_cv19_region.melt(id_vars=['Week ending'], value_vars=categories)
+    melt.rename(columns={'variable':'Region','value':'Deaths'}, inplace=True)
+    fg = sns.FacetGrid(melt, col="Region", hue='Region' , col_wrap=2)
+    fg.map_dataframe(sns.lineplot, x='Week ending', y='Deaths')
+    fg.fig.suptitle('Deaths per week by region (population standardised)')
+
+    for axes in fg.axes.flat:
+        axes.tick_params(axis='x', labelsize=8)
+
+    plt.show()
 
 def vacs_analysis(dfs):
     df_vacs = get_df(dfs, 'df_vacs')
