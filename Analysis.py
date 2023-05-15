@@ -637,7 +637,7 @@ def deaths_analysis(dfs):
 
     normalised = df_cv19_all[categories].divide(df_cv19_all[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_all['Week ending'], normalised.T, labels=categories)
-    plt.title("Proportion of covid-19 deaths by age group(population standardised)")
+    plt.title("Proportion of covid-19 deaths by age group (population standardised)")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
@@ -654,7 +654,7 @@ def deaths_analysis(dfs):
 
     normalised = df_cv19_region[categories].divide(df_cv19_region[categories].sum(axis=1), axis=0)
     plt.stackplot(df_cv19_region['Week ending'], normalised.T, labels=categories)
-    plt.title("Proportion of covid-19 deaths by region(population standardised)")
+    plt.title("Proportion of covid-19 deaths by region (population standardised)")
     plt.xlabel("Week ending")
     plt.xticks(rotation=90)
     plt.ylabel("Deaths (normalised)")
@@ -1067,7 +1067,8 @@ def deaths_vacs_analysis(dfs):
                                 }, inplace=True)
     df_age_corr = df_age_corr.corr(method='pearson')
 
-    sns.heatmap(df_age_corr, annot=True)
+    sns.heatmap(df_age_corr, annot=True, fmt='.2f')
+    plt.title("Correlation between vaccination status and covid-19 deaths")
     plt.show()
 
 def main(FIRST_RUN):
